@@ -9,7 +9,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
-        /* 동글동글하고 가독성 좋은 나눔스퀘어라운드 폰트 적용 */
         @font-face {
             font-family: 'NanumSquareRound';
             src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_two@1.0/NanumSquareRound.woff') format('woff');
@@ -20,15 +19,17 @@
         body, html {
             margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
             font-family: 'NanumSquareRound', sans-serif;
-            background-color: #87CEEB; /* 하늘색 배경 */
-            touch-action: none; /* 모바일 새로고침 방지 */
-            word-break: keep-all; /* 단어 중간에서 줄바꿈 방지 */
+            background-color: #87CEEB;
+            word-break: keep-all; /* 단어 중간 끊김 방지 */
+            -webkit-text-size-adjust: none; /* 태블릿 자동 글씨 확대 방지 */
         }
         
-        #game-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        #game-container { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            touch-action: none; /* 3D 화면 스와이프 방지 */
+        }
         canvas { display: block; width: 100%; height: 100%; }
         
-        /* UI Overlays */
         .overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0, 0, 0, 0.7);
@@ -38,40 +39,42 @@
         .overlay.active { visibility: visible; opacity: 1; }
         
         .game-panel {
-            background: white; border-radius: 20px; padding: clamp(20px, 3vh, 40px);
+            background: white; border-radius: 20px; padding: clamp(20px, 4vh, 40px);
             box-shadow: 0 15px 30px rgba(0,0,0,0.5);
-            max-width: 95%; width: 1000px;
-            max-height: 95vh; overflow-y: auto;
+            width: 90%; max-width: 1000px; max-height: 95vh; overflow-y: auto;
             position: relative;
         }
 
-        .match-container { display: flex; justify-content: space-between; position: relative; margin-top: 2vh; }
+        /* 1단계 스타일 */
+        .match-container { display: flex; justify-content: space-between; position: relative; margin-top: 2vh; padding: 0 40px; }
         .match-col { display: flex; flex-direction: column; gap: 20px; z-index: 10; }
-        .match-col.words { width: 15%; } /* 낱말 칸은 좁게 */
-        .match-col.meanings { width: 60%; } /* 뜻 칸은 넓게 */
+        .match-col.words { width: 15%; } /* 낱말 칸 좁게 */
+        .match-col.meanings { width: 60%; } /* 뜻 칸 넓게 */
         
         .match-item {
-            background: #f0f9ff; border: 3px solid #bae6fd; padding: 15px 20px; border-radius: 12px;
-            text-align: center; position: relative; cursor: pointer; user-select: none;
-            font-size: 1.3rem; font-weight: bold; color: #1e3a8a;
+            background: #f0f9ff; border: 3px solid #bae6fd; padding: clamp(10px, 2vh, 20px); border-radius: 12px;
+            text-align: center; position: relative; cursor: pointer; 
+            user-select: none; -webkit-user-select: none; /* 아이패드 텍스트 선택 방지 */
+            font-size: clamp(1.2rem, 2.5vw, 1.5rem); font-weight: bold; color: #1e3a8a;
             display: flex; align-items: center; justify-content: center;
         }
-        .match-item.right { text-align: left; justify-content: flex-start; font-size: 1.1rem; font-weight: normal; color: #333; }
+        .match-item.right { text-align: left; justify-content: flex-start; font-weight: normal; color: #333; }
         
         .dot {
-            width: 24px; height: 24px; background: #3b82f6; border-radius: 50%;
+            width: clamp(30px, 6vw, 45px); height: clamp(30px, 6vw, 45px); background: #3b82f6; border-radius: 50%; /* 터치하기 쉽게 점 크기 확대 */
             position: absolute; top: 50%; transform: translateY(-50%);
             cursor: crosshair; transition: transform 0.2s, background-color 0.2s;
             box-shadow: 0 0 8px rgba(0,0,0,0.4);
+            touch-action: none; /* 점 터치 시 화면 스크롤 방지 */
         }
         .dot:active, .dot.active { transform: translateY(-50%) scale(1.5); background: #f59e0b; }
-        /* 점을 상자 바깥으로 충분히 빼서 선 연결 여백 확보 */
-        .match-item.left .dot { right: -40px; } 
-        .match-item.right .dot { left: -40px; }
+        /* 점 밖으로 빼기 */
+        .match-item.left .dot { right: -55px; } 
+        .match-item.right .dot { left: -55px; }
         
         #lines-svg {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            pointer-events: none; z-index: 100; /* 선이 맨 위로 오도록 */
+            pointer-events: none; z-index: 100;
             overflow: visible;
         }
         line { stroke: #3b82f6; stroke-width: 6; stroke-linecap: round; }
@@ -79,21 +82,23 @@
 
         .word-bank { display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; margin-bottom: 25px; min-height: 50px; }
         .draggable-word {
-            background: #fde047; padding: 12px 20px; border-radius: 12px; font-weight: bold; font-size: 1.3rem;
-            cursor: grab; user-select: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            transition: transform 0.2s; touch-action: none;
+            background: #fde047; padding: 12px 20px; border-radius: 12px; font-weight: bold; font-size: clamp(1.2rem, 2vw, 1.5rem);
+            cursor: grab; 
+            user-select: none; -webkit-user-select: none; /* 아이패드 텍스트 선택 방지 */
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.2s; 
+            touch-action: none; /* 모바일/태블릿 드래그 시 스크롤 충돌 완벽 방지 */
         }
         .draggable-word:active { cursor: grabbing; transform: scale(1.1); }
-        .sentence-box { background: #f3f4f6; padding: 20px; border-radius: 12px; margin-bottom: 20px; font-size: 1.4rem; line-height: 1.8; word-break: keep-all; }
+        .sentence-box { background: #f3f4f6; padding: 20px; border-radius: 12px; margin-bottom: 20px; font-size: clamp(1.1rem, 2.2vw, 1.4rem); line-height: 1.8; }
         .drop-zone {
-            display: inline-block; width: 110px; height: 45px; border: 3px dashed #9ca3af;
+            display: inline-block; width: 120px; height: 50px; border: 3px dashed #9ca3af;
             border-radius: 8px; vertical-align: middle; background: white; transition: background 0.2s;
-            text-align: center; line-height: 40px; font-weight: bold; color: #15803d;
+            text-align: center; line-height: 44px; font-weight: bold; color: #15803d;
         }
         .drop-zone.hover { background: #dcfce7; border-color: #22c55e; }
         .drop-zone.filled { border-style: solid; background: #fde047; border-color: #eab308; }
 
-        /* 오답 흔들림 애니메이션 */
         @keyframes shake {
             0% { transform: translateX(0); }
             25% { transform: translateX(-10px) rotate(-5deg); background-color: #fca5a5; }
@@ -103,19 +108,25 @@
         }
         .wrong-shake { animation: shake 0.5s ease-in-out; }
 
+        /* HUD 및 오디오 버튼 */
         #hud { position: absolute; top: 20px; left: 20px; z-index: 10; display: none; }
         .password-slot {
-            display: inline-block; width: 60px; height: 60px; background: rgba(255,255,255,0.9);
-            border: 4px solid #333; border-radius: 12px; text-align: center; line-height: 52px;
-            font-size: 30px; font-weight: bold; margin-right: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            display: inline-block; width: clamp(40px, 8vw, 60px); height: clamp(40px, 8vw, 60px); background: rgba(255,255,255,0.9);
+            border: 4px solid #333; border-radius: 12px; text-align: center; line-height: clamp(32px, 7vw, 52px);
+            font-size: clamp(20px, 4vw, 30px); font-weight: bold; margin-right: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
         }
-        #audio-toggle {
+        
+        #audio-controls {
             position: absolute; top: 20px; right: 20px; z-index: 10;
-            background: white; border-radius: 50%; width: 60px; height: 60px;
-            font-size: 28px; cursor: pointer; border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            display: flex; flex-direction: column; gap: 10px;
+        }
+        .audio-btn {
+            background: white; border-radius: 30px; padding: 10px 15px;
+            font-size: 1rem; font-weight: bold; cursor: pointer; border: 2px solid #ddd;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: background 0.2s;
         }
 
-        /* 상장 스타일 - 문장 한 줄 고정 및 크기 확장 */
+        /* 상장 스타일 */
         .certificate {
             border: 15px solid #d4af37; background: #fffdf0; padding: clamp(20px, 4vh, 50px); text-align: center;
             border-radius: 10px; position: relative; width: 100%; box-sizing: border-box;
@@ -123,7 +134,7 @@
         }
         .cert-title { font-size: clamp(2.5rem, 5vh, 4rem); color: #b8860b; margin-bottom: clamp(15px, 3vh, 30px); text-shadow: 2px 2px 4px rgba(0,0,0,0.1); font-weight: bold; }
         .cert-content { line-height: 1.8; color: #333; margin-bottom: clamp(20px, 4vh, 40px); }
-        .cert-content p { white-space: nowrap; margin-bottom: clamp(5px, 1vh, 10px); font-size: clamp(1rem, 2.3vw, 1.8rem); } 
+        .cert-content p { white-space: nowrap; margin-bottom: clamp(5px, 1vh, 10px); font-size: clamp(1.1rem, 2.5vw, 1.8rem); } 
         .stamp {
             position: absolute; bottom: 40px; right: 40px; width: 120px; height: 120px;
             border: 6px solid #dc2626; border-radius: 50%; color: #dc2626; font-size: 1.8rem;
@@ -134,10 +145,11 @@
 </head>
 <body>
 
-    <!-- Sound Toggle -->
-    <button id="audio-toggle">🔊</button>
+    <div id="audio-controls">
+        <button id="bgm-toggle" class="audio-btn">🎵 BGM 켜짐</button>
+        <button id="fx-toggle" class="audio-btn">🔊 효과음 켜짐</button>
+    </div>
 
-    <!-- HUD (비밀번호 수집 현황) -->
     <div id="hud">
         <div class="password-slot" id="pw-1">?</div>
         <div class="password-slot" id="pw-2">?</div>
@@ -150,26 +162,26 @@
     <!-- Start Screen -->
     <div id="start-screen" class="overlay active">
         <div class="game-panel text-center" style="max-width: 800px;">
-            <h1 class="text-4xl md:text-5xl font-bold mb-4 md:mb-6 text-blue-600">스카이워크 탈출 게임</h1>
-            <p class="text-xl md:text-2xl mb-6 md:mb-8 leading-relaxed text-gray-700">스카이워크를 건너며 문제를 풀고<br>자물쇠의 비밀번호를 알아내세요!<br>총 3개의 관문이 있습니다.</p>
-            <button onclick="startGame()" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 md:py-4 md:px-10 rounded-full text-2xl md:text-3xl transition transform hover:scale-105 shadow-lg">게임 시작</button>
+            <h1 class="text-4xl md:text-5xl font-bold mb-6 text-blue-600">스카이워크 탈출 게임</h1>
+            <p class="text-xl md:text-2xl mb-8 leading-relaxed text-gray-700">스카이워크를 건너며 문제를 풀고<br>자물쇠의 비밀번호를 알아내세요!<br>총 3개의 관문이 있습니다.</p>
+            <button onclick="startGame()" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-4 px-10 rounded-full text-2xl transition transform hover:scale-105 shadow-lg">게임 시작</button>
         </div>
     </div>
 
     <!-- 메세지 팝업 -->
     <div id="message-screen" class="overlay">
         <div class="game-panel text-center" style="max-width: 700px;">
-            <h2 id="message-title" class="text-4xl md:text-5xl font-bold mb-4 md:mb-6 text-green-600">성공!</h2>
-            <p id="message-text" class="text-xl md:text-2xl mb-6 md:mb-8 text-gray-800"></p>
-            <button onclick="closeMessage()" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-8 rounded-full text-xl md:text-2xl shadow-md">계속하기</button>
+            <h2 id="message-title" class="text-4xl md:text-5xl font-bold mb-6 text-green-600">성공!</h2>
+            <p id="message-text" class="text-xl md:text-2xl mb-8 text-gray-800"></p>
+            <button onclick="closeMessage()" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-8 rounded-full text-2xl shadow-md">계속하기</button>
         </div>
     </div>
 
     <!-- Stage 1 Screen: 선긋기 -->
     <div id="stage1-screen" class="overlay">
         <div class="game-panel">
-            <h2 class="text-3xl md:text-4xl font-bold mb-4 md:mb-6 text-center text-blue-800">1단계: 낱말과 뜻 연결하기</h2>
-            <p class="text-lg md:text-xl text-gray-600 text-center mb-4 md:mb-6">점과 점을 드래그하여 알맞은 뜻과 연결하세요.</p>
+            <h2 class="text-3xl md:text-4xl font-bold mb-6 text-center text-blue-800">1단계: 낱말과 뜻 연결하기</h2>
+            <p class="text-lg md:text-xl text-gray-600 text-center mb-6">점과 점을 드래그하여 알맞은 뜻과 연결하세요.</p>
             <div class="match-container" id="s1-container">
                 <svg id="lines-svg"></svg>
                 <div class="match-col words" id="s1-left"></div>
@@ -181,18 +193,18 @@
     <!-- Stage 2 Screen: 객관식 -->
     <div id="stage2-screen" class="overlay">
         <div class="game-panel text-center" style="max-width: 800px;">
-            <h2 class="text-3xl md:text-4xl font-bold mb-4 md:mb-6 text-blue-800">2단계: 알맞은 낱말 고르기</h2>
-            <p class="text-lg md:text-xl text-gray-600 mb-6 md:mb-8">다음 뜻에 맞는 올바른 낱말을 고르세요. (<span id="s2-progress">1/3</span>)</p>
-            <div id="s2-question" class="text-xl md:text-2xl font-bold bg-blue-100 p-4 md:p-6 rounded-2xl mb-6 md:mb-8 text-blue-900 shadow-inner"></div>
-            <div id="s2-options" class="flex flex-col gap-3 md:gap-5"></div>
+            <h2 class="text-3xl md:text-4xl font-bold mb-6 text-blue-800">2단계: 알맞은 낱말 고르기</h2>
+            <p class="text-lg md:text-xl text-gray-600 mb-8">다음 뜻에 맞는 올바른 낱말을 고르세요. (<span id="s2-progress">1/3</span>)</p>
+            <div id="s2-question" class="text-xl md:text-2xl font-bold bg-blue-100 p-6 rounded-2xl mb-8 text-blue-900 shadow-inner"></div>
+            <div id="s2-options" class="flex flex-col gap-4"></div>
         </div>
     </div>
 
     <!-- Stage 3 Screen: 빈칸 채우기 -->
     <div id="stage3-screen" class="overlay">
         <div class="game-panel">
-            <h2 class="text-3xl md:text-4xl font-bold mb-4 md:mb-6 text-center text-blue-800">3단계: 문장 완성하기</h2>
-            <p class="text-lg md:text-xl text-gray-600 text-center mb-4 md:mb-8">아래 낱말을 드래그하여 알맞은 빈칸에 쏙 넣어보세요.</p>
+            <h2 class="text-3xl md:text-4xl font-bold mb-6 text-center text-blue-800">3단계: 문장 완성하기</h2>
+            <p class="text-lg md:text-xl text-gray-600 text-center mb-8">아래 낱말을 드래그하여 알맞은 빈칸에 쏙 넣어보세요.</p>
             <div class="word-bank" id="s3-word-bank"></div>
             <div id="s3-sentences"></div>
         </div>
@@ -201,18 +213,19 @@
     <!-- Final Stage Screen: 비밀번호 입력 -->
     <div id="final-screen" class="overlay">
         <div class="game-panel text-center" style="max-width: 700px;">
-            <h2 class="text-4xl md:text-5xl font-bold mb-4 md:mb-6 text-red-600">🔒 굳게 닫힌 철문</h2>
-            <p class="text-xl md:text-2xl mb-6 md:mb-8 text-gray-800">지금까지 모은 비밀번호 3자리를 순서대로 입력하세요!</p>
-            <div class="flex justify-center gap-4 md:gap-6 mb-8 md:mb-10">
-                <input type="number" id="final-pw1" class="w-20 h-20 md:w-24 md:h-24 text-center text-4xl md:text-5xl font-bold border-4 border-gray-400 rounded-2xl bg-gray-50 focus:bg-white focus:border-red-500 outline-none" min="0" max="9">
-                <input type="number" id="final-pw2" class="w-20 h-20 md:w-24 md:h-24 text-center text-4xl md:text-5xl font-bold border-4 border-gray-400 rounded-2xl bg-gray-50 focus:bg-white focus:border-red-500 outline-none" min="0" max="9">
-                <input type="number" id="final-pw3" class="w-20 h-20 md:w-24 md:h-24 text-center text-4xl md:text-5xl font-bold border-4 border-gray-400 rounded-2xl bg-gray-50 focus:bg-white focus:border-red-500 outline-none" min="0" max="9">
+            <h2 class="text-4xl md:text-5xl font-bold mb-6 text-red-600">🔒 굳게 닫힌 철문</h2>
+            <p class="text-xl md:text-2xl mb-8 text-gray-800">지금까지 모은 비밀번호 3자리를 순서대로 입력하세요!</p>
+            <div class="flex justify-center gap-6 mb-10">
+                <!-- pattern과 inputmode를 추가하여 모바일 기기에서 숫자 전용 키패드가 강제로 열리도록 수정 -->
+                <input type="number" pattern="\d*" inputmode="numeric" id="final-pw1" class="w-24 h-24 text-center text-5xl font-bold border-4 border-gray-400 rounded-2xl bg-gray-50 focus:bg-white focus:border-red-500 outline-none" min="0" max="9">
+                <input type="number" pattern="\d*" inputmode="numeric" id="final-pw2" class="w-24 h-24 text-center text-5xl font-bold border-4 border-gray-400 rounded-2xl bg-gray-50 focus:bg-white focus:border-red-500 outline-none" min="0" max="9">
+                <input type="number" pattern="\d*" inputmode="numeric" id="final-pw3" class="w-24 h-24 text-center text-5xl font-bold border-4 border-gray-400 rounded-2xl bg-gray-50 focus:bg-white focus:border-red-500 outline-none" min="0" max="9">
             </div>
-            <button onclick="checkFinalPassword()" class="bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-8 md:py-4 md:px-10 rounded-full text-2xl md:text-3xl shadow-lg">열기</button>
+            <button onclick="checkFinalPassword()" class="bg-red-500 hover:bg-red-600 text-white font-bold py-4 px-10 rounded-full text-3xl shadow-lg">열기</button>
         </div>
     </div>
 
-    <!-- 상장 화면 (성공 엔딩) -->
+    <!-- 상장 화면 -->
     <div id="certificate-screen" class="overlay">
         <div class="game-panel" style="max-width: 950px;">
             <div class="certificate">
@@ -223,19 +236,19 @@
                     <p>모든 문제를 훌륭하게 해결하고 무사히 탈출하였기에</p>
                     <p>이 상장을 수여합니다.</p>
                     <br>
-                    <p class="font-bold text-3xl md:text-4xl text-blue-800">참 잘했습니다!</p>
+                    <p class="font-bold text-3xl text-blue-800">참 잘했습니다!</p>
                 </div>
                 <div class="stamp">참 잘함</div>
             </div>
-            <div class="text-center mt-6 md:mt-8">
-                <button onclick="location.reload()" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 md:px-10 rounded-full text-xl md:text-2xl shadow-lg">다시 하기</button>
+            <div class="text-center mt-8">
+                <button onclick="location.reload()" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-10 rounded-full text-2xl shadow-lg">다시 하기</button>
             </div>
         </div>
     </div>
 
     <script>
         const GAME_DATA = {
-            passwords: [], // 시작 시 랜덤 생성
+            passwords: [], // 랜덤 생성
             s1: {
                 words: ["인기", "절벽", "주변", "구조물", "전망대"],
                 meanings: [
@@ -265,8 +278,7 @@
             currentStage: 0,
             collectedPasswords: [],
             isWalking: false,
-            // 웨이포인트 간격을 15로 좁혀서 이동 시간 단축 (약 2초)
-            waypoints: [-15, -30, -45, -60, -75], 
+            waypoints: [-15, -30, -45, -60, -75], // 2초 템포 이동
             s1_lines: [],
             s2_currentIndex: 0,
             s3_solvedCount: 0
@@ -274,66 +286,82 @@
 
         let onMessageClose = null;
 
-        // --- 오디오 시스템 (Tone.js) ---
-        let isMuted = false;
+        let isBgmEnabled = true;
+        let isFxEnabled = true;
+
         const AudioSystem = {
             synths: {},
             init: async function() {
                 await Tone.start();
                 this.synths.bgm = new Tone.PolySynth(Tone.Synth).toDestination();
                 this.synths.bgm.volume.value = -15;
-                this.synths.fx = new Tone.Synth().toDestination();
+                this.synths.fx = new Tone.PolySynth(Tone.Synth).toDestination(); // 화음 재생을 위해 PolySynth로 변경
                 this.synths.step = new Tone.MembraneSynth().toDestination();
                 this.synths.step.volume.value = -10;
                 
                 const notes = ["C4", "E4", "G4", "B4", "A4", "F4"];
                 let idx = 0;
                 Tone.Transport.scheduleRepeat(time => {
-                    if(!isMuted) this.synths.bgm.triggerAttackRelease(notes[idx % notes.length], "8n", time);
+                    if(isBgmEnabled) this.synths.bgm.triggerAttackRelease(notes[idx % notes.length], "8n", time);
                     idx++;
                 }, "4n");
                 Tone.Transport.start();
             },
             playStep: function() {
-                if (isMuted || !this.synths.step) return;
+                if (!isFxEnabled || !this.synths.step) return;
                 this.synths.step.triggerAttackRelease("C2", "32n");
             },
             playFall: function() {
-                if (isMuted || !this.synths.step) return;
+                if (!isFxEnabled || !this.synths.step) return;
                 const now = Tone.now();
                 this.synths.step.triggerAttackRelease("G1", "16n", now);
                 this.synths.step.triggerAttackRelease("C1", "8n", now + 0.1);
             },
             playUnlock: function() {
-                if (isMuted || !this.synths.fx) return;
+                if (!isFxEnabled || !this.synths.fx) return;
                 this.synths.fx.triggerAttackRelease("C6", "16n");
             },
+            // 신나는 성공 효과음 (아르페지오 상승)
             playCorrect: function() {
-                if (isMuted || !this.synths.fx) return;
+                if (!isFxEnabled || !this.synths.fx) return;
                 const now = Tone.now();
-                this.synths.fx.triggerAttackRelease("C5", "8n", now);
-                this.synths.fx.triggerAttackRelease("E5", "8n", now + 0.1);
-                this.synths.fx.triggerAttackRelease("G5", "4n", now + 0.2);
+                this.synths.fx.triggerAttackRelease("C5", "16n", now);
+                this.synths.fx.triggerAttackRelease("E5", "16n", now + 0.1);
+                this.synths.fx.triggerAttackRelease("G5", "16n", now + 0.2);
+                this.synths.fx.triggerAttackRelease("C6", "8n", now + 0.3);
             },
             playWrong: function() {
-                if (isMuted || !this.synths.fx) return;
+                if (!isFxEnabled || !this.synths.fx) return;
                 const now = Tone.now();
                 this.synths.fx.triggerAttackRelease("Eb3", "8n", now);
                 this.synths.fx.triggerAttackRelease("C3", "4n", now + 0.15);
             },
+            // 마지막 팡파레 효과음
             playTriumph: function() {
-                if (isMuted || !this.synths.fx) return;
+                if (!isFxEnabled || !this.synths.fx) return;
                 const now = Tone.now();
-                this.synths.fx.triggerAttackRelease("G4", "8n", now);
-                this.synths.fx.triggerAttackRelease("C5", "8n", now + 0.15);
-                this.synths.fx.triggerAttackRelease("E5", "8n", now + 0.3);
-                this.synths.fx.triggerAttackRelease("G5", "2n", now + 0.45);
+                this.synths.fx.triggerAttackRelease("C4", "8n", now);
+                this.synths.fx.triggerAttackRelease("E4", "8n", now + 0.15);
+                this.synths.fx.triggerAttackRelease("G4", "8n", now + 0.3);
+                this.synths.fx.triggerAttackRelease("C5", "4n", now + 0.45);
+                this.synths.fx.triggerAttackRelease("G4", "8n", now + 0.8);
+                this.synths.fx.triggerAttackRelease("C5", "2n", now + 0.95);
             }
         };
 
-        document.getElementById('audio-toggle').addEventListener('click', (e) => {
-            isMuted = !isMuted;
-            e.target.innerText = isMuted ? '🔇' : '🔊';
+        // 오디오 토글 이벤트 리스너
+        document.getElementById('bgm-toggle').addEventListener('click', (e) => {
+            isBgmEnabled = !isBgmEnabled;
+            e.target.innerText = isBgmEnabled ? '🎵 BGM 켜짐' : '🎵 BGM 꺼짐';
+            e.target.style.background = isBgmEnabled ? 'white' : '#e5e7eb';
+            if (AudioSystem.synths.bgm) {
+                AudioSystem.synths.bgm.volume.value = isBgmEnabled ? -15 : -Infinity;
+            }
+        });
+        document.getElementById('fx-toggle').addEventListener('click', (e) => {
+            isFxEnabled = !isFxEnabled;
+            e.target.innerText = isFxEnabled ? '🔊 효과음 켜짐' : '🔊 효과음 꺼짐';
+            e.target.style.background = isFxEnabled ? 'white' : '#e5e7eb';
         });
 
         function shuffle(array) {
@@ -362,7 +390,7 @@
         dirLight.castShadow = true;
         scene.add(dirLight);
 
-        // 스카이워크 다리
+        // 스카이워크
         const pathMat = new THREE.MeshStandardMaterial({ 
             color: 0x88ccff, transparent: true, opacity: 0.6, roughness: 0.1, metalness: 0.8 
         });
@@ -381,7 +409,7 @@
         railR.position.set(3, 0.5, -45);
         scene.add(railR);
 
-        // 깊은 숲 바닥과 나무 생성
+        // 숲 및 하늘 배경
         const groundGeo = new THREE.PlaneGeometry(600, 600);
         const groundMat = new THREE.MeshStandardMaterial({ color: 0x2d4c1e, roughness: 1 });
         const ground = new THREE.Mesh(groundGeo, groundMat);
@@ -405,7 +433,6 @@
             scene.add(leaves);
         }
 
-        // 구름
         const cloudGeo = new THREE.DodecahedronGeometry(5, 0);
         const cloudMat = new THREE.MeshStandardMaterial({ color: 0xffffff, flatShading: true, transparent: true, opacity: 0.9 });
         for(let i = 0; i < 60; i++) {
@@ -419,7 +446,6 @@
             scene.add(cloud);
         }
 
-        // 캐릭터 (마인크래프트 풍)
         const character = new THREE.Group();
         const headMat = new THREE.MeshStandardMaterial({ color: 0xffccaa });
         const bodyMat = new THREE.MeshStandardMaterial({ color: 0x3b82f6 });
@@ -449,20 +475,21 @@
         rightLeg.position.set(0.22, 0.4, 0);
         character.add(rightLeg);
 
-        // 180도 회전하여 앞을 보게 함
+        // 앞을 보도록 회전
         character.rotation.y = Math.PI;
         character.position.set(0, 0, state.waypoints[0]);
         scene.add(character);
 
-        // 장애물 상자 (불투명 빨간색)
+        // 꽉 막는 거대한 장애물 상자
         const obstacleMat = new THREE.MeshStandardMaterial({ color: 0xe53e3e, roughness: 0.7, metalness: 0.2 });
         const obstacles = [];
         const fallingObstacles = [];
         
         for(let i=1; i<=3; i++) {
-            const obs = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), obstacleMat);
-            // 장애물은 도착 지점보다 1.5 앞에 배치하여 길을 막음
-            obs.position.set(0, 1, state.waypoints[i] - 1.5); 
+            // 크기 증가: 폭 6, 높이 3, 깊이 2
+            const obs = new THREE.Mesh(new THREE.BoxGeometry(6, 3, 2), obstacleMat);
+            // 길을 꽉 막도록 웨이포인트(도착점) 뒤쪽(+2.0)에 배치. 캐릭터는 z에서 멈춤
+            obs.position.set(0, 1.5, state.waypoints[i] - 1.5); 
             obs.castShadow = true;
             scene.add(obs);
             obstacles.push(obs);
@@ -480,34 +507,33 @@
         doorGroup.add(doorRight);
         scene.add(doorGroup);
 
-        // 눈부신 황금 자물쇠 생성
+        // 노란 몸통, 회색 고리 자물쇠
         const padlockGroup = new THREE.Group();
-        const lockBodyMat = new THREE.MeshStandardMaterial({ color: 0xFFD700, metalness: 1.0, roughness: 0.1 }); 
+        const lockBodyMat = new THREE.MeshStandardMaterial({ color: 0xFFD700, metalness: 1.0, roughness: 0.1 }); // 황금색
         const lockBody = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.8, 0.4), lockBodyMat);
         padlockGroup.add(lockBody);
         
-        const shackleMat = new THREE.MeshStandardMaterial({ color: 0xFFD700, metalness: 1.0, roughness: 0.1 }); 
+        const shackleMat = new THREE.MeshStandardMaterial({ color: 0x808080, metalness: 0.8, roughness: 0.3 }); // 회색
         const shackle = new THREE.Mesh(new THREE.TorusGeometry(0.4, 0.1, 16, 32, Math.PI), shackleMat);
         shackle.position.y = 0.4;
         padlockGroup.add(shackle);
 
-        // 두 문이 만나는 중앙 위치에 자물쇠 배치
         padlockGroup.position.set(0, 2, state.waypoints[4] - 1.7);
         scene.add(padlockGroup);
 
-        // 카메라를 항상 캐릭터의 등 뒤에서 바라보도록 업데이트하는 핵심 함수
+        // 카메라를 캐릭터 등 뒤에서 앞을 보도록 업데이트
         function updateCamera() {
             camera.position.x = character.position.x;
             camera.position.y = character.position.y + 4; // 머리 위쪽
-            camera.position.z = character.position.z + 6; // 등 뒤 (z축 양의 방향)
+            camera.position.z = character.position.z + 7; // 등 뒤
             camera.lookAt(character.position.x, character.position.y + 1, character.position.z - 5); // 앞을 봄
         }
         
-        updateCamera(); // 초기 위치 설정
+        updateCamera();
 
         let clock = new THREE.Clock();
         let walkTime = 0;
-        let unlockAnimStage = 0; // 0: 잠김, 1: 고리 열림, 2: 전체 떨어짐
+        let unlockAnimStage = 0; 
         let doorOpenAnim = false;
 
         function animate() {
@@ -528,17 +554,17 @@
 
             // 황금 자물쇠 열림 -> 낙하 연출
             if (unlockAnimStage === 1) {
-                shackle.position.y += 2 * delta; // 고리가 철컥 위로 열림
+                shackle.position.y += 2 * delta; // 회색 고리가 위로 열림
                 if (shackle.position.y > 0.9) {
-                    unlockAnimStage = 2; // 다 열리면 떨어지기 시작
+                    unlockAnimStage = 2;
                 }
             } else if (unlockAnimStage === 2) {
-                padlockGroup.position.y -= 4 * delta; // 자물쇠 전체 낙하
+                padlockGroup.position.y -= 4 * delta; // 전체 낙하
                 padlockGroup.rotation.x += 3 * delta;
                 if (padlockGroup.position.y < -15) {
                     scene.remove(padlockGroup);
                     unlockAnimStage = 0;
-                    doorOpenAnim = true; // 자물쇠 떨어지면 문 열림 시작
+                    doorOpenAnim = true; // 문 열림 시작
                 }
             }
 
@@ -554,10 +580,10 @@
             }
 
             if (state.isWalking) {
-                // 초당 이동 속도를 조절하여 정확히 목표 거리에 도달하도록 세팅 (속도 = 거리15 / 시간2초 = 7.5)
+                // 초당 이동 속도를 올려 빠르게 도착 (15거리를 2초에 가도록 7.5 설정)
                 const moveSpeed = 7.5;
                 character.position.z -= moveSpeed * delta;
-                updateCamera(); // 카메라 추적
+                updateCamera();
                     
                 // 걷기 애니메이션 및 발소리
                 walkTime += delta * 15;
@@ -568,13 +594,10 @@
                 if (Math.sin(walkTime) > 0.9 && Math.sin(walkTime - 0.1) <= 0.9) AudioSystem.playStep();
                 if (-Math.sin(walkTime) > 0.9 && -Math.sin(walkTime - 0.1) <= 0.9) AudioSystem.playStep();
 
-                // 현재 단계의 장애물/도착 지점 체크
                 let targetZ = state.waypoints[state.currentStage];
-                // 1~3단계는 장애물 앞(-1.5)이 아니라 도착 웨이포인트(targetZ)에서 멈추도록 조정됨 
-                // 위에서 박스 위치를 targetZ - 1.5로 옮겼으므로, 캐릭터가 targetZ까지 오면 박스 바로 앞에 멈춤
                 
                 if (character.position.z <= targetZ) {
-                    character.position.z = targetZ; // 정확한 위치 보정
+                    character.position.z = targetZ; 
                     stopWalking();
                     
                     if (state.currentStage >= 1 && state.currentStage <= 3) {
@@ -590,7 +613,7 @@
 
         function stopWalking() {
             state.isWalking = false;
-            updateCamera(); // 멈출 때도 카메라 위치 정렬
+            updateCamera();
             leftArm.rotation.x = 0; rightArm.rotation.x = 0;
             leftLeg.rotation.x = 0; rightLeg.rotation.x = 0;
         }
@@ -646,7 +669,7 @@
         }
 
         function completeStage(stageNum) {
-            AudioSystem.playCorrect();
+            AudioSystem.playCorrect(); // 신나는 화음 효과음
             showScreen(null);
             const pw = GAME_DATA.passwords[stageNum - 1];
             state.collectedPasswords.push(pw);
@@ -654,14 +677,14 @@
             showMessage(`🎉 ${stageNum}단계 성공!`, `자물쇠 비밀번호 [ ${pw} ] 를 획득했습니다!`, () => {
                 updateHUD();
                 
-                // 장애물 낙하 연출 시작
+                // 장애물 낙하 연출
                 const obs = obstacles[stageNum - 1];
                 if (obs) {
                     fallingObstacles.push(obs);
                     AudioSystem.playFall();
                 }
                 
-                // 장애물이 떨어질 시간을 1초 주고 다시 전진
+                // 1초 뒤 이동
                 setTimeout(walkToNext, 1000);
             });
         }
@@ -922,8 +945,8 @@
             if (p1 === GAME_DATA.passwords[0] && p2 === GAME_DATA.passwords[1] && p3 === GAME_DATA.passwords[2]) {
                 showScreen(null);
                 document.getElementById('hud').style.display = 'none';
-                AudioSystem.playUnlock(); // 철컥 소리
-                unlockAnimStage = 1; // 자물쇠 열림 애니메이션 시작 (이후 문 열림 트리거)
+                AudioSystem.playUnlock();
+                unlockAnimStage = 1; // 자물쇠 해제 3D 애니메이션 시작
             } else {
                 AudioSystem.playWrong();
                 const inputs = [document.getElementById('final-pw1'), document.getElementById('final-pw2'), document.getElementById('final-pw3')];
@@ -936,8 +959,9 @@
 
         function showCertificate() {
             showScreen('certificate-screen');
-            AudioSystem.playTriumph();
+            AudioSystem.playTriumph(); // 팡파레 음악 재생
             
+            // 화면 양쪽에서 폭죽(꽃가루) 효과
             var duration = 4000;
             var end = Date.now() + duration;
 
